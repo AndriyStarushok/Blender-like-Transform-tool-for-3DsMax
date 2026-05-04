@@ -641,7 +641,13 @@ buttonText:"B-Engine"
 				startMousePos = mouse.pos
 			)
 			
-			if ::BlenderGrab_ActiveNodesV25.count > 0 do refRotTM = ::BlenderGrab_ActiveNodesV25[1].transform.rotation as matrix3
+			if ::BlenderGrab_ActiveNodesV25.count > 0 do (
+				if subObjectLevel != undefined and subObjectLevel > 0 then (
+					refRotTM = ::BlenderGrab_GetSubObjMatrixV25 ::BlenderGrab_ActiveNodesV25
+				) else (
+					refRotTM = ::BlenderGrab_ActiveNodesV25[1].transform.rotation as matrix3
+				)
+			)
 			
 			for k = 1 to 256 do wasPressedKeys[k] = ::BlenderGrab_KeyReaderV25.IsPressed k
 			wasPressedX = wasPressedKeys[VK_X]; wasPressedY = wasPressedKeys[VK_Y]; wasPressedZ = wasPressedKeys[VK_Z]

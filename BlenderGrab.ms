@@ -167,6 +167,81 @@ createDialog ::BlenderGrab_HiddenRollout pos:[-1000,-1000] width:10 height:10 st
 -- GLOBAL MATHEMATICS FUNCTIONS
 -- ============================================================================
 
+global BlenderGrab_GetSubObjMatrixV25
+::BlenderGrab_GetSubObjMatrixV25 = fn BlenderGrab_GetSubObjMatrixV25_Func activeNodes = (
+	if activeNodes.count == 0 do return matrix3 1
+	local baseTM = activeNodes[1].transform.rotation as matrix3
+	local avgNormal = [0,0,0]
+	local normCount = 0
+	
+	for obj in activeNodes do (
+		local curMod = modPanel.getCurrentObject()
+		if curMod == undefined do curMod = obj.baseObject
+		local cClassStr = classOf curMod as string
+		
+		if cClassStr == "Editable_Poly" then (
+			local faces = #{}
+			case subObjectLevel of (
+				1: faces = polyop.getFacesUsingVert obj (polyop.getVertSelection obj)
+				2: faces = polyop.getFacesUsingEdge obj (polyop.getEdgeSelection obj)
+				3: faces = polyop.getFacesUsingEdge obj (polyop.getEdgeSelection obj)
+				4: faces = polyop.getFaceSelection obj
+				5: faces = polyop.getFaceSelection obj
+			)
+			-- Беремо чисту нормаль у світовому просторі без подвійного множення
+			in coordsys world (
+				for f in faces do (
+					avgNormal += normalize (polyop.getFaceNormal obj f)
+					normCount += 1
+				)
+			)
+		)
+		else if cClassStr == "Edit_Poly" or cClassStr == "Editable_Mesh" then (
+			local tempMesh = undefined
+			try(tempMesh = snapshotAsMesh obj)catch()
+			if tempMesh != undefined do (
+				local faces = #{}
+				if cClassStr == "Edit_Poly" then (
+					case subObjectLevel of (
+						1: faces = meshop.getFacesUsingVert tempMesh (curMod.GetSelection #Vertex)
+						2: faces = meshop.getFacesUsingEdge tempMesh (curMod.GetSelection #Edge)
+						3: faces = meshop.getFacesUsingEdge tempMesh (curMod.GetSelection #Edge)
+						4: faces = curMod.GetSelection #Face
+						5: faces = curMod.GetSelection #Face
+					)
+				) else (
+					case subObjectLevel of (
+						1: faces = meshop.getFacesUsingVert tempMesh (getVertSelection obj)
+						2: faces = meshop.getFacesUsingEdge tempMesh (getEdgeSelection obj)
+						3: faces = meshop.getFacesUsingEdge tempMesh (getEdgeSelection obj)
+						4: faces = getFaceSelection obj
+						5: faces = getFaceSelection obj
+					)
+				)
+				for f in faces do (
+					avgNormal += normalize (getFaceNormal tempMesh f)
+					normCount += 1
+				)
+				free tempMesh
+			)
+		)
+	)
+	
+	if normCount > 0 then (
+		local zAxis = normalize (avgNormal / normCount)
+		if length zAxis > 0.001 then (
+			-- Використовуємо локальний Z об'єкта як напрямок 'вгору' для стабільної орієнтації X/Y
+			local upAxis = normalize baseTM.row3
+			if abs(dot zAxis upAxis) > 0.99 do upAxis = normalize baseTM.row2
+			if abs(dot zAxis upAxis) > 0.99 do upAxis = normalize baseTM.row1
+
+			local xAxis = normalize (cross upAxis zAxis)
+			local yAxis = normalize (cross zAxis xAxis)
+			return matrix3 xAxis yAxis zAxis [0,0,0]
+		) else return baseTM
+	) else return baseTM
+)
+
 global BlenderGrab_DrawAxes
 ::BlenderGrab_DrawAxes = fn BlenderGrab_DrawAxes_Func = (
 	if not ::BlenderGrab_StateV25.isActive do return()
@@ -483,4 +558,4 @@ global BlenderGrab_ApplyActionV25
 	)
 )
 
-print "Blender Transform Engine V25 (Gizmo & FFD Ready) Loaded."
+print "Blender Transform Engine V25 (Sub-Object Local Orientation Ready) Loaded."
